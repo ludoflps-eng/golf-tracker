@@ -605,10 +605,6 @@
         <span class="opt-icon">↖️</span>
         <span class="opt-label">Left</span>
       </button>
-      <button data-val="fairway" onclick="selectOption('direction','fairway',this)">
-        <span class="opt-icon">🎯</span>
-        <span class="opt-label">Fairway</span>
-      </button>
       <button data-val="right" onclick="selectOption('direction','right',this)">
         <span class="opt-icon">↗️</span>
         <span class="opt-label">Right</span>
@@ -796,7 +792,7 @@
     if (!state.grip) state.grip = 'normal';
     if (!state.slope) state.slope = 'flat';
     if (!state.wind) state.wind = 'none';
-    if (!state.direction) { showToast('Select a direction'); return; }
+    if (!state.direction) state.direction = 'fairway';
 
     const shot = {
       id: Date.now(),
@@ -818,9 +814,11 @@
     state.grip = null;
     state.slope = null;
     state.wind = null;
+    state.direction = null;
     document.getElementById('gripRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     document.getElementById('slopeRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     document.getElementById('windRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+    document.getElementById('directionRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     buildClubGrid();
   }
 
