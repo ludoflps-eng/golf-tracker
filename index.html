@@ -219,49 +219,61 @@
     .club-card {
       background: var(--card);
       border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
 
-    .club-card-header {
+    .club-card-main {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      gap: 8px;
     }
 
-    .club-name { font-size: 1.1rem; font-weight: 700; }
-    .shot-count { font-size: 0.75rem; color: var(--muted); }
-
-    .stats-row {
-      display: flex;
-      gap: 12px;
+    .club-name {
+      font-size: 1rem;
+      font-weight: 700;
+      min-width: 36px;
     }
 
-    .stat-box {
+    .club-avg-wrap {
       flex: 1;
       background: var(--green-pale);
       border-radius: 8px;
-      padding: 10px;
+      padding: 8px 0;
       text-align: center;
     }
 
-    .stat-box .stat-val { font-size: 1.4rem; font-weight: 800; color: var(--green); }
-    .stat-box .stat-lbl { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+    .club-avg-val { font-size: 1.5rem; font-weight: 800; color: var(--green); line-height: 1; }
+    .club-avg-lbl { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+
+    .club-minmax {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 72px;
+      text-align: right;
+    }
+
+    .club-minmax span {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .club-minmax span strong { color: var(--text); font-weight: 700; }
 
     .breakdown-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 10px;
+      gap: 4px;
+      margin-top: 8px;
     }
 
     .breakdown-tag {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       background: #f0f0f0;
       border-radius: 6px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       color: var(--muted);
     }
 
@@ -686,22 +698,15 @@
         const tags = buildBreakdownTags(shots);
 
         return `<div class="club-card">
-          <div class="club-card-header">
+          <div class="club-card-main">
             <span class="club-name">${c}</span>
-            <span class="shot-count">${shots.length} shot${shots.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div class="stats-row">
-            <div class="stat-box">
-              <div class="stat-val">${average}m</div>
-              <div class="stat-lbl">Average</div>
+            <div class="club-avg-wrap">
+              <div class="club-avg-val">${average}m</div>
+              <div class="club-avg-lbl">Average · ${shots.length} shot${shots.length !== 1 ? 's' : ''}</div>
             </div>
-            <div class="stat-box">
-              <div class="stat-val">${max}m</div>
-              <div class="stat-lbl">Max</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-val">${min}m</div>
-              <div class="stat-lbl">Min</div>
+            <div class="club-minmax">
+              <span><strong>${max}m</strong> max</span>
+              <span><strong>${min}m</strong> min</span>
             </div>
           </div>
           ${tags}
