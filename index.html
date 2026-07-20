@@ -486,6 +486,42 @@
       background: #e8f0fe;
       color: #4285f4;
     }
+
+    /* CLUB DECISION */
+    .decide-club-card {
+      padding: 7px 4px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      transition: all 0.2s;
+    }
+
+    .decide-club-card.best {
+      border-color: var(--green);
+      background: var(--green-pale);
+    }
+
+    .decide-club-card.best .club-btn-name { color: var(--green); font-size: 1.1rem; }
+    .decide-club-card.best .club-btn-avg { color: var(--green); font-weight: 700; }
+
+    .decide-best-label {
+      font-size: 0.58rem;
+      font-weight: 700;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .decide-no-data {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 20px 0 8px;
+    }
   </style>
 </head>
 <body>
@@ -607,6 +643,51 @@
   <div id="historyContent"></div>
 </div>
 
+<div id="page-decide" class="page">
+  <div class="log-section">
+    <label>Distance to pin (meters)</label>
+    <div class="distance-input">
+      <input type="number" id="decideDistInput" placeholder="xxx" inputmode="numeric" min="1" max="400" oninput="runDecision()" />
+      <span>m</span>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Slope</label>
+    <div class="option-row" id="decideSlopeRow">
+      <button data-val="flat" onclick="selectDecideOption('slope','flat',this)">
+        <span class="opt-icon">➡️</span><span class="opt-label">Flat</span>
+      </button>
+      <button data-val="uphill" onclick="selectDecideOption('slope','uphill',this)">
+        <span class="opt-icon">⬆️</span><span class="opt-label">Uphill</span>
+      </button>
+      <button data-val="downhill" onclick="selectDecideOption('slope','downhill',this)">
+        <span class="opt-icon">⬇️</span><span class="opt-label">Downhill</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Wind</label>
+    <div class="option-row" id="decideWindRow">
+      <button data-val="none" onclick="selectDecideOption('wind','none',this)">
+        <span class="opt-icon">😶</span><span class="opt-label">No Wind</span>
+      </button>
+      <button data-val="back" onclick="selectDecideOption('wind','back',this)">
+        <span class="opt-icon">💨→</span><span class="opt-label">Back Wind</span>
+      </button>
+      <button data-val="front" onclick="selectDecideOption('wind','front',this)">
+        <span class="opt-icon">←💨</span><span class="opt-label">Front Wind</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Club Recommendation</label>
+    <div class="club-grid" id="decideGrid"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <nav>
@@ -618,6 +699,9 @@
   </button>
   <button onclick="showPage('history',this)">
     <span class="icon">📋</span>History
+  </button>
+  <button onclick="showPage('decide',this)">
+    <span class="icon">🎯</span>Decide
   </button>
 </nav>
 
@@ -733,6 +817,7 @@
     btn.classList.add('active');
     if (name === 'stats') renderStats();
     if (name === 'history') renderHistory();
+    if (name === 'decide') runDecision();
   }
 
   function setFilter(f, btn) {
@@ -1072,6 +1157,81 @@
     } catch (e) {
       showToast('Restore failed: ' + e.message);
     }
+  }
+
+  // ── Club Decision ────────────────────────────────────────────────────
+  const decideState = { slope: null, wind: null };
+
+  function selectDecideOption(type, val, btn) {
+    decideState[type] = val;
+    const rowId = 'decide' + type.charAt(0).toUpperCase() + type.slice(1) + 'Row';
+    document.getElementById(rowId).querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    runDecision();
+  }
+
+  function runDecision() {
+    const dist = parseInt(document.getElementById('decideDistInput').value);
+    buildDecideGrid(dist, decideState.slope, decideState.wind);
+  }
+
+  function buildDecideGrid(dist, slope, wind) {
+    const data = getData();
+    const grid = document.getElementById('decideGrid');
+    if (!grid) return;
+
+    const SLOPE_M = { flat: 1.0, uphill: 0.92, downhill: 1.08 };
+    const WIND_M  = { none: 1.0, back: 1.08, front: 0.92 };
+
+    // Compute effective distance per club under current conditions
+    const clubEff = {};
+    CLUBS.forEach(c => {
+      const allShots = data.filter(s => s.club === c);
+      if (allShots.length === 0) { clubEff[c] = null; return; }
+
+      // Prefer filtered data; fall back to adjusted overall average
+      let condShots = allShots;
+      if (slope) condShots = condShots.filter(s => s.slope === slope);
+      if (wind)  condShots = condShots.filter(s => s.wind  === wind);
+
+      if (condShots.length >= 1) {
+        clubEff[c] = avg(condShots.map(s => s.distance));
+      } else {
+        const overall = avg(allShots.map(s => s.distance));
+        clubEff[c] = Math.round(overall * SLOPE_M[slope || 'flat'] * WIND_M[wind || 'none']);
+      }
+    });
+
+    // Find closest club to target distance
+    let bestClub = null;
+    if (dist && dist > 0) {
+      let bestDiff = Infinity;
+      CLUBS.forEach(c => {
+        if (clubEff[c] === null) return;
+        const diff = Math.abs(clubEff[c] - dist);
+        if (diff < bestDiff) { bestDiff = diff; bestClub = c; }
+      });
+    }
+
+    const hasAnyData = CLUBS.some(c => clubEff[c] !== null);
+    if (!hasAnyData) {
+      grid.innerHTML = '<div class="decide-no-data">No shots logged yet.<br>Log some shots first to get recommendations.</div>';
+      return;
+    }
+
+    grid.innerHTML = '';
+    CLUBS.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'decide-club-card';
+      const isBest = c === bestClub;
+      if (isBest) card.classList.add('best');
+      const effAvg = clubEff[c];
+      card.innerHTML =
+        `<span class="club-btn-name">${c}</span>` +
+        (effAvg !== null ? `<span class="club-btn-avg">${effAvg}m</span>` : '<span class="club-btn-avg">—</span>') +
+        (isBest ? '<span class="decide-best-label">✓ Best</span>' : '');
+      grid.appendChild(card);
+    });
   }
 
   function updateLastBackupInfo() {
