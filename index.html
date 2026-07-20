@@ -769,7 +769,7 @@
 
   // ── Google Drive Backup ──────────────────────────────────────────────
   const CLIENT_ID = '483687180739-i3lngosmtmm1l0rsm15ga1t9mnm9epv5.apps.googleusercontent.com';
-  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
   const BACKUP_FILE_NAME = 'golf-tracker-backup.json';
 
   let tokenClient = null;
@@ -803,8 +803,8 @@
   }
 
   async function findBackupFile(token) {
-    const q = encodeURIComponent(`name='${BACKUP_FILE_NAME}' and trashed=false`);
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive`, {
+    const q = encodeURIComponent(`name='${BACKUP_FILE_NAME}'`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
@@ -824,7 +824,7 @@
           body: content
         });
       } else {
-        const meta = JSON.stringify({ name: BACKUP_FILE_NAME, mimeType: 'application/json' });
+        const meta = JSON.stringify({ name: BACKUP_FILE_NAME, mimeType: 'application/json', parents: ['appDataFolder'] });
         const form = new FormData();
         form.append('metadata', new Blob([meta], { type: 'application/json' }));
         form.append('file', new Blob([content], { type: 'application/json' }));
