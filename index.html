@@ -305,6 +305,7 @@
     .tag-grip { background: #e3f2fd; color: #1565c0; }
     .tag-slope { background: #fff3e0; color: #e65100; }
     .tag-wind { background: #f3e5f5; color: #6a1b9a; }
+    .tag-direction { background: #e8f5e9; color: #2d6a2d; }
 
     .history-item .hi-dist {
       font-size: 1.3rem;
@@ -479,6 +480,24 @@
     </div>
   </div>
 
+  <div class="log-section">
+    <label>Direction</label>
+    <div class="option-row" id="directionRow">
+      <button data-val="left" onclick="selectOption('direction','left',this)">
+        <span class="opt-icon">↖️</span>
+        <span class="opt-label">Left</span>
+      </button>
+      <button data-val="fairway" onclick="selectOption('direction','fairway',this)">
+        <span class="opt-icon">🎯</span>
+        <span class="opt-label">Fairway</span>
+      </button>
+      <button data-val="right" onclick="selectOption('direction','right',this)">
+        <span class="opt-icon">↗️</span>
+        <span class="opt-label">Right</span>
+      </button>
+    </div>
+  </div>
+
   <button class="btn-primary" onclick="logShot()">Log Shot</button>
 </div>
 
@@ -536,7 +555,8 @@
     club: null,
     grip: null,
     slope: null,
-    wind: null
+    wind: null,
+    direction: null
   };
 
   let activeFilter = 'all';
@@ -578,6 +598,7 @@
     if (!state.grip) { showToast('Select a grip'); return; }
     if (!state.slope) { showToast('Select a slope'); return; }
     if (!state.wind) { showToast('Select wind condition'); return; }
+    if (!state.direction) { showToast('Select a direction'); return; }
 
     const shot = {
       id: Date.now(),
@@ -586,6 +607,7 @@
       grip: state.grip,
       slope: state.slope,
       wind: state.wind,
+      direction: state.direction,
       date: new Date().toISOString()
     };
 
@@ -690,27 +712,44 @@
   }
 
   function buildBreakdownTags(shots) {
-    const groups = { grip: {}, slope: {}, wind: {} };
+    const groups = { grip: {}, slope: {}, wind: {}, direction: {} };
     shots.forEach(s => {
-      ['grip','slope','wind'].forEach(k => {
-        if (!groups[k][s[k]]) groups[k][s[k]] = [];
-        groups[k][s[k]].push(s.distance);
+      ['grip','slope','wind','direction'].forEach(k => {
+        if (!s[k]) return;
+        if (!groups[k][s[k]]) groups[k][s[k]] = 0;
+        groups[k][s[k]]++;
       });
     });
 
     const labels = {
       grip: { normal: 'Normal grip', short: 'Short grip' },
       slope: { flat: 'Flat', uphill: 'Uphill', downhill: 'Downhill' },
-      wind: { none: 'No wind', back: 'Back wind', front: 'Front wind' }
+      wind: { none: 'No wind', back: 'Back wind', front: 'Front wind' },
+      direction: { fairway: '🎯 Fairway', left: '↖️ Left', right: '↗️ Right' }
     };
 
+    const total = shots.length;
     const tags = [];
-    ['grip','slope','wind'].forEach(k => {
-      Object.entries(groups[k]).forEach(([val, dists]) => {
-        if (dists.length > 0) {
-          tags.push(`<span class="breakdown-tag">${labels[k][val]}: <strong>${avg(dists)}m avg</strong></span>`);
-        }
+
+    // Distance breakdown for grip/slope/wind
+    const distGroups = { grip: {}, slope: {}, wind: {} };
+    shots.forEach(s => {
+      ['grip','slope','wind'].forEach(k => {
+        if (!distGroups[k][s[k]]) distGroups[k][s[k]] = [];
+        distGroups[k][s[k]].push(s.distance);
       });
+    });
+
+    ['grip','slope','wind'].forEach(k => {
+      Object.entries(distGroups[k]).forEach(([val, dists]) => {
+        tags.push(`<span class="breakdown-tag">${labels[k][val]}: <strong>${avg(dists)}m avg</strong></span>`);
+      });
+    });
+
+    // Direction breakdown as percentage
+    Object.entries(groups.direction).forEach(([val, count]) => {
+      const pct = Math.round((count / total) * 100);
+      tags.push(`<span class="breakdown-tag">${labels.direction[val]}: <strong>${pct}%</strong></span>`);
     });
 
     return tags.length > 0 ? `<div class="breakdown-row">${tags.join('')}</div>` : '';
@@ -726,11 +765,13 @@
 
     const slopeIcon = { flat: '➡️', uphill: '⬆️', downhill: '⬇️' };
     const windIcon = { none: '😶', back: '💨→', front: '←💨' };
+    const dirIcon = { fairway: '🎯', left: '↖️', right: '↗️' };
 
     const html = [...data].reverse().map(s => {
       const d = new Date(s.date);
       const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
         ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const dirTag = s.direction ? `<span class="tag tag-direction">${dirIcon[s.direction]} ${s.direction}</span>` : '';
 
       return `<div class="history-item">
         <div class="hi-left">
@@ -739,6 +780,7 @@
             <span class="tag tag-grip">${s.grip === 'short' ? 'Short' : 'Normal'} grip</span>
             <span class="tag tag-slope">${slopeIcon[s.slope]} ${s.slope}</span>
             <span class="tag tag-wind">${windIcon[s.wind]} ${s.wind === 'none' ? 'No wind' : s.wind + ' wind'}</span>
+            ${dirTag}
           </div>
         </div>
         <div style="text-align:right">
