@@ -114,10 +114,11 @@
     }
 
     .club-btn-avg {
-      font-size: 0.65rem;
+      font-size: 0.58rem;
       font-weight: 500;
       color: var(--muted);
-      line-height: 1;
+      line-height: 1.2;
+      text-align: center;
     }
 
     .club-grid button.selected .club-btn-avg { color: var(--green); }
@@ -730,16 +731,19 @@
   const grid = document.getElementById('clubGrid');
 
   function getClubAverages() {
-    const avgs = {};
     const byClub = {};
     getData().forEach(s => {
-      if (!byClub[s.club]) byClub[s.club] = [];
-      byClub[s.club].push(s.distance);
+      if (!byClub[s.club]) byClub[s.club] = { normal: [], short: [] };
+      byClub[s.club][s.grip === 'short' ? 'short' : 'normal'].push(s.distance);
     });
-    Object.entries(byClub).forEach(([club, dists]) => {
-      avgs[club] = Math.round(dists.reduce((a, b) => a + b, 0) / dists.length);
+    const result = {};
+    Object.entries(byClub).forEach(([club, grips]) => {
+      result[club] = {
+        normal: grips.normal.length ? Math.round(grips.normal.reduce((a, b) => a + b, 0) / grips.normal.length) : null,
+        short:  grips.short.length  ? Math.round(grips.short.reduce((a, b) => a + b, 0)  / grips.short.length)  : null
+      };
     });
-    return avgs;
+    return result;
   }
 
   function buildClubGrid() {
@@ -748,9 +752,18 @@
     grid.innerHTML = '';
     CLUBS.forEach(c => {
       const btn = document.createElement('button');
-      const avgVal = avgs[c];
-      btn.innerHTML = `<span class="club-btn-name">${c}</span>`
-        + (avgVal ? `<span class="club-btn-avg">${avgVal}m</span>` : '<span class="club-btn-avg">—</span>');
+      const g = avgs[c];
+      let avgHtml;
+      if (!g) {
+        avgHtml = '<span class="club-btn-avg">—</span>';
+      } else if (g.normal !== null && g.short !== null) {
+        avgHtml = `<span class="club-btn-avg">N-${g.normal}m  S-${g.short}m</span>`;
+      } else if (g.normal !== null) {
+        avgHtml = `<span class="club-btn-avg">N-${g.normal}m</span>`;
+      } else {
+        avgHtml = `<span class="club-btn-avg">S-${g.short}m</span>`;
+      }
+      btn.innerHTML = `<span class="club-btn-name">${c}</span>` + avgHtml;
       if (c === selected) btn.classList.add('selected');
       btn.onclick = () => selectClub(c, btn);
       grid.appendChild(btn);
