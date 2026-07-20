@@ -769,7 +769,7 @@
 
   // ── Google Drive Backup ──────────────────────────────────────────────
   const CLIENT_ID = '483687180739-i3lngosmtmm1l0rsm15ga1t9mnm9epv5.apps.googleusercontent.com';
-  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
   const BACKUP_FILE_NAME = 'golf-tracker-backup.json';
 
   let tokenClient = null;
@@ -779,13 +779,14 @@
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: DRIVE_SCOPE,
+      prompt: 'select_account',
       callback: handleDriveToken
     });
     updateLastBackupInfo();
   }
 
   function handleDriveToken(response) {
-    if (response.error) { showToast('Google sign-in failed'); return; }
+    if (response.error) { showToast('Google sign-in failed: ' + response.error); return; }
     if (driveAction === 'backup') performBackup(response.access_token);
     else if (driveAction === 'restore') performRestore(response.access_token);
   }
@@ -803,10 +804,12 @@
   }
 
   async function findBackupFile(token) {
-    const q = encodeURIComponent(`name='${BACKUP_FILE_NAME}'`);
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const q = encodeURIComponent(`name='${BACKUP_FILE_NAME}' and trashed=false`);
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) throw new Error(`Search failed (${res.status})`);
     const data = await res.json();
     return (data.files && data.files.length > 0) ? data.files[0].id : null;
   }
@@ -817,29 +820,35 @@
       const content = JSON.stringify(getData());
       const fileId = await findBackupFile(token);
 
+      let res;
       if (fileId) {
-        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: content
         });
       } else {
-        const meta = JSON.stringify({ name: BACKUP_FILE_NAME, mimeType: 'application/json', parents: ['appDataFolder'] });
+        const meta = JSON.stringify({ name: BACKUP_FILE_NAME, mimeType: 'application/json' });
         const form = new FormData();
         form.append('metadata', new Blob([meta], { type: 'application/json' }));
         form.append('file', new Blob([content], { type: 'application/json' }));
-        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: form
         });
       }
 
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Upload failed (${res.status})`);
+      }
+
       localStorage.setItem('lastDriveBackup', new Date().toISOString());
       updateLastBackupInfo();
       showToast('Backed up to Drive ☁️');
     } catch (e) {
-      showToast('Backup failed, check connection');
+      showToast('Backup failed: ' + e.message);
     }
   }
 
@@ -852,12 +861,13 @@
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
       const shots = await res.json();
       saveData(shots);
       renderHistory();
       showToast(`Restored ${shots.length} shots ☁️`);
     } catch (e) {
-      showToast('Restore failed, check connection');
+      showToast('Restore failed: ' + e.message);
     }
   }
 
