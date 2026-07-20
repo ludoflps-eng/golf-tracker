@@ -90,11 +90,39 @@
 
     .club-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
     }
 
-    .club-grid button, .option-row button {
+    .club-grid button {
+      padding: 10px 4px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .club-btn-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .club-btn-avg {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--muted);
+      line-height: 1;
+    }
+
+    .club-grid button.selected .club-btn-avg { color: var(--green); }
+
+    .option-row button {
       padding: 10px 4px;
       border: 2px solid var(--border);
       border-radius: 8px;
@@ -623,12 +651,36 @@
 
   // Build club grid
   const grid = document.getElementById('clubGrid');
-  CLUBS.forEach(c => {
-    const btn = document.createElement('button');
-    btn.textContent = c;
-    btn.onclick = () => selectClub(c, btn);
-    grid.appendChild(btn);
-  });
+
+  function getClubAverages() {
+    const avgs = {};
+    const byClub = {};
+    getData().forEach(s => {
+      if (!byClub[s.club]) byClub[s.club] = [];
+      byClub[s.club].push(s.distance);
+    });
+    Object.entries(byClub).forEach(([club, dists]) => {
+      avgs[club] = Math.round(dists.reduce((a, b) => a + b, 0) / dists.length);
+    });
+    return avgs;
+  }
+
+  function buildClubGrid() {
+    const avgs = getClubAverages();
+    const selected = state.club;
+    grid.innerHTML = '';
+    CLUBS.forEach(c => {
+      const btn = document.createElement('button');
+      const avgVal = avgs[c];
+      btn.innerHTML = `<span class="club-btn-name">${c}</span>`
+        + (avgVal ? `<span class="club-btn-avg">${avgVal}m</span>` : '<span class="club-btn-avg">—</span>');
+      if (c === selected) btn.classList.add('selected');
+      btn.onclick = () => selectClub(c, btn);
+      grid.appendChild(btn);
+    });
+  }
+
+  buildClubGrid();
 
   function selectClub(club, btn) {
     state.club = club;
@@ -669,6 +721,7 @@
 
     showToast('Shot logged! ⛳');
     document.getElementById('distInput').value = '';
+    buildClubGrid();
   }
 
   function showToast(msg) {
