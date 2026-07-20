@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Golf Tracker</title>
+  <style>
+    :root {
+      --green: #2d6a2d;
+      --green-light: #3d8b3d;
+      --green-pale: #e8f5e9;
+      --accent: #ffc107;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --muted: #666;
+      --border: #ddd;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+
+    header {
+      background: var(--green);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.5px; }
+    header span { font-size: 1.4rem; }
+
+    nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: white;
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 100;
+    }
+
+    nav button {
+      flex: 1;
+      padding: 12px 8px 16px;
+      background: none;
+      border: none;
+      font-size: 0.7rem;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: color 0.2s;
+    }
+
+    nav button .icon { font-size: 1.4rem; }
+    nav button.active { color: var(--green); font-weight: 600; }
+
+    .page { display: none; padding: 16px; }
+    .page.active { display: block; }
+
+    /* LOG SHOT */
+    .log-section { margin-bottom: 20px; }
+    .log-section label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .club-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .club-grid button, .option-row button {
+      padding: 10px 4px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .club-grid button.selected, .option-row button.selected {
+      border-color: var(--green);
+      background: var(--green-pale);
+      color: var(--green);
+    }
+
+    .option-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .option-row button {
+      flex: 1;
+      padding: 12px 8px;
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .option-row button .opt-icon { font-size: 1.2rem; }
+    .option-row button .opt-label { font-size: 0.7rem; font-weight: 500; }
+
+    .distance-input {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .distance-input input {
+      flex: 1;
+      padding: 14px 16px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      text-align: center;
+      outline: none;
+    }
+
+    .distance-input input:focus { border-color: var(--green); }
+    .distance-input span { font-size: 1rem; color: var(--muted); font-weight: 600; }
+
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:active { background: var(--green-light); }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+
+    .toast {
+      position: fixed;
+      top: 70px; left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--green);
+      color: white;
+      padding: 10px 24px;
+      border-radius: 24px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* STATS */
+    .stats-filter {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .stats-filter button {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border: 2px solid var(--border);
+      border-radius: 20px;
+      background: white;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.15s;
+    }
+
+    .stats-filter button.active {
+      border-color: var(--green);
+      background: var(--green);
+      color: white;
+    }
+
+    .club-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .club-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .club-name { font-size: 1.1rem; font-weight: 700; }
+    .shot-count { font-size: 0.75rem; color: var(--muted); }
+
+    .stats-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .stat-box {
+      flex: 1;
+      background: var(--green-pale);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .stat-box .stat-val { font-size: 1.4rem; font-weight: 800; color: var(--green); }
+    .stat-box .stat-lbl { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+
+    .breakdown-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .breakdown-tag {
+      font-size: 0.7rem;
+      background: #f0f0f0;
+      border-radius: 6px;
+      padding: 3px 8px;
+      color: var(--muted);
+    }
+
+    .breakdown-tag strong { color: var(--text); }
+
+    .no-data {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px 20px;
+      font-size: 0.95rem;
+    }
+
+    /* HISTORY */
+    .history-item {
+      background: white;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+
+    .history-item .hi-left { flex: 1; }
+    .history-item .hi-club { font-weight: 700; font-size: 0.95rem; }
+    .history-item .hi-tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 3px;
+    }
+
+    .tag {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .tag-grip { background: #e3f2fd; color: #1565c0; }
+    .tag-slope { background: #fff3e0; color: #e65100; }
+    .tag-wind { background: #f3e5f5; color: #6a1b9a; }
+
+    .history-item .hi-dist {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--green);
+      text-align: right;
+    }
+
+    .history-item .hi-dist span { font-size: 0.7rem; color: var(--muted); font-weight: 500; }
+    .history-item .hi-date { font-size: 0.65rem; color: var(--muted); margin-top: 2px; text-align: right; }
+
+    .history-item .del-btn {
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 4px 0 4px 10px;
+      color: #ccc;
+      transition: color 0.2s;
+    }
+    .history-item .del-btn:active { color: #e53935; }
+
+    .page-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 0.75rem;
+    }
+
+    .empty-history {
+      text-align: center;
+      color: var(--muted);
+      padding: 50px 20px;
+    }
+
+    .btn-danger {
+      padding: 10px 20px;
+      background: none;
+      border: 2px solid #e53935;
+      color: #e53935;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⛳ Golf Tracker</h1>
+</header>
+
+<div id="page-log" class="page active">
+  <div class="log-section">
+    <label>Club</label>
+    <div class="club-grid" id="clubGrid"></div>
+  </div>
+
+  <div class="log-section">
+    <label>Distance (meters)</label>
+    <div class="distance-input">
+      <input type="number" id="distInput" placeholder="e.g. 145" inputmode="numeric" min="1" max="400" />
+      <span>m</span>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Grip</label>
+    <div class="option-row" id="gripRow">
+      <button data-val="normal" onclick="selectOption('grip','normal',this)">
+        <span class="opt-icon">🤜</span>
+        <span class="opt-label">Normal</span>
+      </button>
+      <button data-val="short" onclick="selectOption('grip','short',this)">
+        <span class="opt-icon">✊</span>
+        <span class="opt-label">Short</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Slope</label>
+    <div class="option-row" id="slopeRow">
+      <button data-val="flat" onclick="selectOption('slope','flat',this)">
+        <span class="opt-icon">➡️</span>
+        <span class="opt-label">Flat</span>
+      </button>
+      <button data-val="uphill" onclick="selectOption('slope','uphill',this)">
+        <span class="opt-icon">⬆️</span>
+        <span class="opt-label">Uphill</span>
+      </button>
+      <button data-val="downhill" onclick="selectOption('slope','downhill',this)">
+        <span class="opt-icon">⬇️</span>
+        <span class="opt-label">Downhill</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Wind</label>
+    <div class="option-row" id="windRow">
+      <button data-val="none" onclick="selectOption('wind','none',this)">
+        <span class="opt-icon">😶</span>
+        <span class="opt-label">No Wind</span>
+      </button>
+      <button data-val="back" onclick="selectOption('wind','back',this)">
+        <span class="opt-icon">💨→</span>
+        <span class="opt-label">Back Wind</span>
+      </button>
+      <button data-val="front" onclick="selectOption('wind','front',this)">
+        <span class="opt-icon">←💨</span>
+        <span class="opt-label">Front Wind</span>
+      </button>
+    </div>
+  </div>
+
+  <button class="btn-primary" onclick="logShot()">Log Shot</button>
+</div>
+
+<div id="page-stats" class="page">
+  <p class="page-title">Averages & Max per Club</p>
+  <div class="stats-filter" id="statsFilter">
+    <button class="active" onclick="setFilter('all',this)">All</button>
+    <button onclick="setFilter('grip:normal',this)">Normal Grip</button>
+    <button onclick="setFilter('grip:short',this)">Short Grip</button>
+    <button onclick="setFilter('slope:flat',this)">Flat</button>
+    <button onclick="setFilter('slope:uphill',this)">Uphill</button>
+    <button onclick="setFilter('slope:downhill',this)">Downhill</button>
+    <button onclick="setFilter('wind:none',this)">No Wind</button>
+    <button onclick="setFilter('wind:back',this)">Back Wind</button>
+    <button onclick="setFilter('wind:front',this)">Front Wind</button>
+  </div>
+  <div id="statsContent"></div>
+</div>
+
+<div id="page-history" class="page">
+  <p class="page-title">All Shots</p>
+  <div id="historyContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<nav>
+  <button class="active" onclick="showPage('log',this)">
+    <span class="icon">🏌️</span>Log Shot
+  </button>
+  <button onclick="showPage('stats',this)">
+    <span class="icon">📊</span>Stats
+  </button>
+  <button onclick="showPage('history',this)">
+    <span class="icon">📋</span>History
+  </button>
+</nav>
+
+<script>
+  const CLUBS = [
+    'Driver','3W','5W','7W',
+    '2i','3i','4i','5i','6i','7i','8i','9i',
+    'PW','AW','SW','LW'
+  ];
+
+  const state = {
+    club: null,
+    grip: null,
+    slope: null,
+    wind: null
+  };
+
+  let activeFilter = 'all';
+
+  function getData() {
+    return JSON.parse(localStorage.getItem('golfShots') || '[]');
+  }
+
+  function saveData(d) {
+    localStorage.setItem('golfShots', JSON.stringify(d));
+  }
+
+  // Build club grid
+  const grid = document.getElementById('clubGrid');
+  CLUBS.forEach(c => {
+    const btn = document.createElement('button');
+    btn.textContent = c;
+    btn.onclick = () => selectClub(c, btn);
+    grid.appendChild(btn);
+  });
+
+  function selectClub(club, btn) {
+    state.club = club;
+    grid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  function selectOption(type, val, btn) {
+    state[type] = val;
+    const row = document.getElementById(type + 'Row');
+    row.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  function logShot() {
+    const dist = parseInt(document.getElementById('distInput').value);
+    if (!state.club) { showToast('Select a club'); return; }
+    if (!dist || dist < 1 || dist > 400) { showToast('Enter a valid distance'); return; }
+    if (!state.grip) { showToast('Select a grip'); return; }
+    if (!state.slope) { showToast('Select a slope'); return; }
+    if (!state.wind) { showToast('Select wind condition'); return; }
+
+    const shot = {
+      id: Date.now(),
+      club: state.club,
+      distance: dist,
+      grip: state.grip,
+      slope: state.slope,
+      wind: state.wind,
+      date: new Date().toISOString()
+    };
+
+    const data = getData();
+    data.push(shot);
+    saveData(data);
+
+    showToast('Shot logged! ⛳');
+    document.getElementById('distInput').value = '';
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  function showPage(name, btn) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    btn.classList.add('active');
+    if (name === 'stats') renderStats();
+    if (name === 'history') renderHistory();
+  }
+
+  function setFilter(f, btn) {
+    activeFilter = f;
+    document.querySelectorAll('.stats-filter button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderStats();
+  }
+
+  function applyFilter(shots) {
+    if (activeFilter === 'all') return shots;
+    const [type, val] = activeFilter.split(':');
+    return shots.filter(s => s[type] === val);
+  }
+
+  function avg(arr) {
+    return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+  }
+
+  function renderStats() {
+    const data = getData();
+    const container = document.getElementById('statsContent');
+    if (data.length === 0) {
+      container.innerHTML = '<div class="no-data">No shots logged yet.<br>Hit the course and start tracking! 🏌️</div>';
+      return;
+    }
+
+    const filtered = applyFilter(data);
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="no-data">No shots match this filter.</div>';
+      return;
+    }
+
+    const byClub = {};
+    filtered.forEach(s => {
+      if (!byClub[s.club]) byClub[s.club] = [];
+      byClub[s.club].push(s);
+    });
+
+    // Sort clubs in CLUBS order
+    const html = CLUBS
+      .filter(c => byClub[c])
+      .map(c => {
+        const shots = byClub[c];
+        const distances = shots.map(s => s.distance);
+        const average = avg(distances);
+        const max = Math.max(...distances);
+        const min = Math.min(...distances);
+
+        // Breakdown tags
+        const tags = buildBreakdownTags(shots);
+
+        return `<div class="club-card">
+          <div class="club-card-header">
+            <span class="club-name">${c}</span>
+            <span class="shot-count">${shots.length} shot${shots.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="stats-row">
+            <div class="stat-box">
+              <div class="stat-val">${average}m</div>
+              <div class="stat-lbl">Average</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val">${max}m</div>
+              <div class="stat-lbl">Max</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val">${min}m</div>
+              <div class="stat-lbl">Min</div>
+            </div>
+          </div>
+          ${tags}
+        </div>`;
+      }).join('');
+
+    container.innerHTML = html;
+  }
+
+  function buildBreakdownTags(shots) {
+    const groups = { grip: {}, slope: {}, wind: {} };
+    shots.forEach(s => {
+      ['grip','slope','wind'].forEach(k => {
+        if (!groups[k][s[k]]) groups[k][s[k]] = [];
+        groups[k][s[k]].push(s.distance);
+      });
+    });
+
+    const labels = {
+      grip: { normal: 'Normal grip', short: 'Short grip' },
+      slope: { flat: 'Flat', uphill: 'Uphill', downhill: 'Downhill' },
+      wind: { none: 'No wind', back: 'Back wind', front: 'Front wind' }
+    };
+
+    const tags = [];
+    ['grip','slope','wind'].forEach(k => {
+      Object.entries(groups[k]).forEach(([val, dists]) => {
+        if (dists.length > 0) {
+          tags.push(`<span class="breakdown-tag">${labels[k][val]}: <strong>${avg(dists)}m avg</strong></span>`);
+        }
+      });
+    });
+
+    return tags.length > 0 ? `<div class="breakdown-row">${tags.join('')}</div>` : '';
+  }
+
+  function renderHistory() {
+    const data = getData();
+    const container = document.getElementById('historyContent');
+    if (data.length === 0) {
+      container.innerHTML = '<div class="empty-history">No shots logged yet.<br>Start tracking your game! 🏌️</div>';
+      return;
+    }
+
+    const slopeIcon = { flat: '➡️', uphill: '⬆️', downhill: '⬇️' };
+    const windIcon = { none: '😶', back: '💨→', front: '←💨' };
+
+    const html = [...data].reverse().map(s => {
+      const d = new Date(s.date);
+      const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+        ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+      return `<div class="history-item">
+        <div class="hi-left">
+          <div class="hi-club">${s.club}</div>
+          <div class="hi-tags">
+            <span class="tag tag-grip">${s.grip === 'short' ? 'Short' : 'Normal'} grip</span>
+            <span class="tag tag-slope">${slopeIcon[s.slope]} ${s.slope}</span>
+            <span class="tag tag-wind">${windIcon[s.wind]} ${s.wind === 'none' ? 'No wind' : s.wind + ' wind'}</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="hi-dist">${s.distance}<span>m</span></div>
+          <div class="hi-date">${dateStr}</div>
+        </div>
+        <button class="del-btn" onclick="deleteShot(${s.id})">🗑</button>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = html + `<div style="text-align:center;margin-top:16px">
+      <button class="btn-danger" onclick="clearAll()">Clear All Shots</button>
+    </div>`;
+  }
+
+  function deleteShot(id) {
+    const data = getData().filter(s => s.id !== id);
+    saveData(data);
+    renderHistory();
+  }
+
+  function clearAll() {
+    if (confirm('Delete all shots? This cannot be undone.')) {
+      saveData([]);
+      renderHistory();
+    }
+  }
+</script>
+</body>
+</html>
