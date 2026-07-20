@@ -514,10 +514,6 @@
   <div class="log-section">
     <label>Grip</label>
     <div class="option-row" id="gripRow">
-      <button data-val="normal" onclick="selectOption('grip','normal',this)">
-        <span class="opt-icon">🤜</span>
-        <span class="opt-label">Normal</span>
-      </button>
       <button data-val="short" onclick="selectOption('grip','short',this)">
         <span class="opt-icon">✊</span>
         <span class="opt-label">Short</span>
@@ -696,7 +692,7 @@
     const dist = parseInt(document.getElementById('distInput').value);
     if (!state.club) { showToast('Select a club'); return; }
     if (!dist || dist < 1 || dist > 400) { showToast('Enter a valid distance'); return; }
-    if (!state.grip) { showToast('Select a grip'); return; }
+    if (!state.grip) state.grip = 'normal';
     if (!state.slope) { showToast('Select a slope'); return; }
     if (!state.wind) { showToast('Select wind condition'); return; }
     if (!state.direction) { showToast('Select a direction'); return; }
@@ -718,6 +714,8 @@
 
     showToast('Shot logged! ⛳');
     document.getElementById('distInput').value = '';
+    state.grip = null;
+    document.getElementById('gripRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     buildClubGrid();
   }
 
