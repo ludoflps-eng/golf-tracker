@@ -490,34 +490,46 @@
 
     /* CLUB DECISION */
     .decide-club-card {
-      padding: 7px 4px;
       border: 2px solid var(--border);
       border-radius: 8px;
       background: white;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      transition: all 0.2s;
+      transition: border-color 0.2s;
     }
 
-    .decide-club-card.best {
-      border-color: var(--green);
-      background: var(--green-pale);
-    }
+    .decide-club-card.best { border-color: var(--green); }
 
-    .decide-club-card.best .club-btn-name { color: var(--green); font-size: 1.1rem; }
-    .decide-club-card.best .club-btn-avg { color: var(--green); font-weight: 700; }
-
-    .decide-best-label {
-      font-size: 0.58rem;
+    .dc-name {
+      font-size: 0.9rem;
       font-weight: 700;
-      color: var(--green);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
+      text-align: center;
+      padding: 5px 4px;
+      line-height: 1;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s, color 0.2s;
     }
+
+    .dc-name.best { background: var(--green); color: white; }
+
+    .dc-grips { display: flex; }
+
+    .dc-grip {
+      flex: 1;
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 4px 2px;
+      color: var(--muted);
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .dc-grip:first-child { border-right: 1px solid var(--border); }
+    .dc-grip.best { background: var(--green-pale); color: var(--green); font-weight: 700; }
 
     .decide-no-data {
+      grid-column: 1 / -1;
       text-align: center;
       color: var(--muted);
       font-size: 0.85rem;
@@ -1195,38 +1207,46 @@
 
     const SLOPE_M = { flat: 1.0, uphill: 0.90, downhill: 1.10 };
     const WIND_M  = { none: 1.0, back: 1.08, front: 0.92 };
+    const sm = SLOPE_M[slope || 'flat'];
+    const wm = WIND_M[wind || 'none'];
 
-    // Compute effective distance per club under current conditions
-    const clubEff = {};
+    // Compute N and S effective averages per club under current conditions
+    const clubData = {};
     CLUBS.forEach(c => {
+      clubData[c] = { normal: null, short: null };
       const allShots = data.filter(s => s.club === c);
-      if (allShots.length === 0) { clubEff[c] = null; return; }
+      if (allShots.length === 0) return;
 
-      // Prefer filtered data; fall back to adjusted overall average
-      let condShots = allShots;
-      if (slope) condShots = condShots.filter(s => s.slope === slope);
-      if (wind)  condShots = condShots.filter(s => s.wind  === wind);
+      ['normal', 'short'].forEach(grip => {
+        const gripShots = allShots.filter(s => (s.grip === 'short' ? 'short' : 'normal') === grip);
+        if (gripShots.length === 0) return;
 
-      if (condShots.length >= 1) {
-        clubEff[c] = avg(condShots.map(s => s.distance));
-      } else {
-        const overall = avg(allShots.map(s => s.distance));
-        clubEff[c] = Math.round(overall * SLOPE_M[slope || 'flat'] * WIND_M[wind || 'none']);
-      }
+        let condShots = gripShots;
+        if (slope) condShots = condShots.filter(s => s.slope === slope);
+        if (wind)  condShots = condShots.filter(s => s.wind  === wind);
+
+        clubData[c][grip] = condShots.length >= 1
+          ? avg(condShots.map(s => s.distance))
+          : Math.round(avg(gripShots.map(s => s.distance)) * sm * wm);
+      });
     });
 
-    // Find closest club to target distance
+    // Find best (club, grip) — closest effective average to target
     let bestClub = null;
+    let bestGrip = null;
     if (dist && dist > 0) {
       let bestDiff = Infinity;
       CLUBS.forEach(c => {
-        if (clubEff[c] === null) return;
-        const diff = Math.abs(clubEff[c] - dist);
-        if (diff < bestDiff) { bestDiff = diff; bestClub = c; }
+        ['normal', 'short'].forEach(grip => {
+          const eff = clubData[c][grip];
+          if (eff === null) return;
+          const diff = Math.abs(eff - dist);
+          if (diff < bestDiff) { bestDiff = diff; bestClub = c; bestGrip = grip; }
+        });
       });
     }
 
-    const hasAnyData = CLUBS.some(c => clubEff[c] !== null);
+    const hasAnyData = CLUBS.some(c => clubData[c].normal !== null || clubData[c].short !== null);
     if (!hasAnyData) {
       grid.innerHTML = '<div class="decide-no-data">No shots logged yet.<br>Log some shots first to get recommendations.</div>';
       return;
@@ -1234,15 +1254,31 @@
 
     grid.innerHTML = '';
     CLUBS.forEach(c => {
+      const cd = clubData[c];
+      const isBestClub = c === bestClub;
+
       const card = document.createElement('div');
-      card.className = 'decide-club-card';
-      const isBest = c === bestClub;
-      if (isBest) card.classList.add('best');
-      const effAvg = clubEff[c];
-      card.innerHTML =
-        `<span class="club-btn-name">${c}</span>` +
-        (effAvg !== null ? `<span class="club-btn-avg">${effAvg}m</span>` : '<span class="club-btn-avg">—</span>') +
-        (isBest ? '<span class="decide-best-label">✓ Best</span>' : '');
+      card.className = 'decide-club-card' + (isBestClub ? ' best' : '');
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'dc-name' + (isBestClub ? ' best' : '');
+      nameDiv.textContent = c;
+
+      const gripsDiv = document.createElement('div');
+      gripsDiv.className = 'dc-grips';
+
+      ['normal', 'short'].forEach(grip => {
+        const div = document.createElement('div');
+        const isBestGrip = isBestClub && grip === bestGrip;
+        div.className = 'dc-grip' + (isBestGrip ? ' best' : '');
+        div.textContent = cd[grip] !== null
+          ? `${grip === 'normal' ? 'N' : 'S'}-${cd[grip]}m`
+          : `${grip === 'normal' ? 'N' : 'S'}-—`;
+        gripsDiv.appendChild(div);
+      });
+
+      card.appendChild(nameDiv);
+      card.appendChild(gripsDiv);
       grid.appendChild(card);
     });
   }
