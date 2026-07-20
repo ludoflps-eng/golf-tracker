@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Golf Tracker</title>
+  <script src="https://accounts.google.com/gsi/client" async onload="initGoogleAuth()"></script>
   <style>
     :root {
       --green: #2d6a2d;
@@ -353,6 +354,59 @@
       cursor: pointer;
       margin-top: 12px;
     }
+
+    /* DRIVE BACKUP */
+    .drive-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      border-left: 4px solid #4285f4;
+    }
+
+    .drive-card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #4285f4;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .drive-last-backup {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .drive-btns {
+      display: flex;
+      gap: 8px;
+    }
+
+    .drive-btns button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .drive-btns button:active { opacity: 0.7; }
+
+    .btn-drive-save {
+      background: #4285f4;
+      color: white;
+    }
+
+    .btn-drive-restore {
+      background: #e8f0fe;
+      color: #4285f4;
+    }
   </style>
 </head>
 <body>
@@ -445,6 +499,14 @@
 </div>
 
 <div id="page-history" class="page">
+  <div class="drive-card">
+    <div class="drive-card-title">☁️ Google Drive Backup</div>
+    <div class="drive-last-backup" id="lastBackupInfo">Never backed up</div>
+    <div class="drive-btns">
+      <button class="btn-drive-save" onclick="backupToDrive()">↑ Backup to Drive</button>
+      <button class="btn-drive-restore" onclick="restoreFromDrive()">↓ Restore from Drive</button>
+    </div>
+  </div>
   <p class="page-title">All Shots</p>
   <div id="historyContent"></div>
 </div>
@@ -703,6 +765,110 @@
       saveData([]);
       renderHistory();
     }
+  }
+
+  // ── Google Drive Backup ──────────────────────────────────────────────
+  const CLIENT_ID = '483687180739-i3lngosmtmm1l0rsm15ga1t9mnm9epv5.apps.googleusercontent.com';
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  const BACKUP_FILE_NAME = 'golf-tracker-backup.json';
+
+  let tokenClient = null;
+  let driveAction = null;
+
+  function initGoogleAuth() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: DRIVE_SCOPE,
+      callback: handleDriveToken
+    });
+    updateLastBackupInfo();
+  }
+
+  function handleDriveToken(response) {
+    if (response.error) { showToast('Google sign-in failed'); return; }
+    if (driveAction === 'backup') performBackup(response.access_token);
+    else if (driveAction === 'restore') performRestore(response.access_token);
+  }
+
+  function backupToDrive() {
+    if (!tokenClient) { showToast('Google not ready yet, try again'); return; }
+    driveAction = 'backup';
+    tokenClient.requestAccessToken();
+  }
+
+  function restoreFromDrive() {
+    if (!tokenClient) { showToast('Google not ready yet, try again'); return; }
+    driveAction = 'restore';
+    tokenClient.requestAccessToken();
+  }
+
+  async function findBackupFile(token) {
+    const q = encodeURIComponent(`name='${BACKUP_FILE_NAME}' and trashed=false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    return (data.files && data.files.length > 0) ? data.files[0].id : null;
+  }
+
+  async function performBackup(token) {
+    showToast('Saving to Drive...');
+    try {
+      const content = JSON.stringify(getData());
+      const fileId = await findBackupFile(token);
+
+      if (fileId) {
+        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: content
+        });
+      } else {
+        const meta = JSON.stringify({ name: BACKUP_FILE_NAME, mimeType: 'application/json' });
+        const form = new FormData();
+        form.append('metadata', new Blob([meta], { type: 'application/json' }));
+        form.append('file', new Blob([content], { type: 'application/json' }));
+        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form
+        });
+      }
+
+      localStorage.setItem('lastDriveBackup', new Date().toISOString());
+      updateLastBackupInfo();
+      showToast('Backed up to Drive ☁️');
+    } catch (e) {
+      showToast('Backup failed, check connection');
+    }
+  }
+
+  async function performRestore(token) {
+    showToast('Restoring from Drive...');
+    try {
+      const fileId = await findBackupFile(token);
+      if (!fileId) { showToast('No backup found on Drive'); return; }
+
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const shots = await res.json();
+      saveData(shots);
+      renderHistory();
+      showToast(`Restored ${shots.length} shots ☁️`);
+    } catch (e) {
+      showToast('Restore failed, check connection');
+    }
+  }
+
+  function updateLastBackupInfo() {
+    const el = document.getElementById('lastBackupInfo');
+    if (!el) return;
+    const ts = localStorage.getItem('lastDriveBackup');
+    if (!ts) { el.textContent = 'Never backed up'; return; }
+    const d = new Date(ts);
+    el.textContent = 'Last backup: ' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      + ' at ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 </script>
 </body>
