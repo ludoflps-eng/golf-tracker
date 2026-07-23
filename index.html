@@ -567,6 +567,15 @@
         <span class="opt-icon">✊</span>
         <span class="opt-label">Short</span>
       </button>
+      <button data-val="drop" id="dropGripBtn" onclick="selectOption('grip','drop',this)" style="display:none">
+        <span class="opt-icon">
+          <svg width="1.3em" height="1em" viewBox="0 0 200 140" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" style="display:block">
+            <path d="M10,125 C 40,20 95,-10 130,35 C 148,58 150,80 158,96"/>
+            <polygon points="180,112 151,90 156,120" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
+        <span class="opt-label">Drop shot</span>
+      </button>
     </div>
   </div>
 
@@ -727,14 +736,16 @@
   function getClubAverages() {
     const byClub = {};
     getData().forEach(s => {
-      if (!byClub[s.club]) byClub[s.club] = { normal: [], short: [] };
-      byClub[s.club][s.grip === 'short' ? 'short' : 'normal'].push(s.distance);
+      if (!byClub[s.club]) byClub[s.club] = { normal: [], short: [], drop: [] };
+      const key = s.grip === 'short' ? 'short' : s.grip === 'drop' ? 'drop' : 'normal';
+      byClub[s.club][key].push(s.distance);
     });
     const result = {};
     Object.entries(byClub).forEach(([club, grips]) => {
       result[club] = {
         normal: grips.normal.length ? Math.round(grips.normal.reduce((a, b) => a + b, 0) / grips.normal.length) : null,
-        short:  grips.short.length  ? Math.round(grips.short.reduce((a, b) => a + b, 0)  / grips.short.length)  : null
+        short:  grips.short.length  ? Math.round(grips.short.reduce((a, b) => a + b, 0)  / grips.short.length)  : null,
+        drop:   grips.drop.length   ? Math.round(grips.drop.reduce((a, b) => a + b, 0)   / grips.drop.length)   : null
       };
     });
     return result;
@@ -750,12 +761,12 @@
       let avgHtml;
       if (!g) {
         avgHtml = '<span class="club-btn-avg">—</span>';
-      } else if (g.normal !== null && g.short !== null) {
-        avgHtml = `<span class="club-btn-avg">N-${g.normal}m  S-${g.short}m</span>`;
-      } else if (g.normal !== null) {
-        avgHtml = `<span class="club-btn-avg">N-${g.normal}m</span>`;
       } else {
-        avgHtml = `<span class="club-btn-avg">S-${g.short}m</span>`;
+        const parts = [];
+        if (g.normal !== null) parts.push(`N-${g.normal}m`);
+        if (g.short !== null) parts.push(`S-${g.short}m`);
+        if (g.drop !== null) parts.push(`Drop-${g.drop}m`);
+        avgHtml = `<span class="club-btn-avg">${parts.join('  ') || '—'}</span>`;
       }
       btn.innerHTML = `<span class="club-btn-name">${c}</span>` + avgHtml;
       if (c === selected) btn.classList.add('selected');
@@ -770,13 +781,32 @@
     state.club = club;
     grid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
+    updateGripRowForClub(club);
+  }
+
+  function updateGripRowForClub(club) {
+    const dropBtn = document.getElementById('dropGripBtn');
+    if (club === 'SW') {
+      dropBtn.style.display = '';
+    } else {
+      dropBtn.style.display = 'none';
+      if (state.grip === 'drop') {
+        state.grip = null;
+        dropBtn.classList.remove('selected');
+      }
+    }
   }
 
   function selectOption(type, val, btn) {
-    state[type] = val;
     const row = document.getElementById(type + 'Row');
+    const alreadySelected = btn.classList.contains('selected');
     row.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
+    if (alreadySelected) {
+      state[type] = null;
+    } else {
+      state[type] = val;
+      btn.classList.add('selected');
+    }
   }
 
   function logShot() {
@@ -913,7 +943,7 @@
     });
 
     const labels = {
-      grip: { normal: 'Normal grip', short: 'Short grip' },
+      grip: { normal: 'Normal grip', short: 'Short grip', drop: 'Drop grip' },
       slope: { flat: 'Flat', uphill: 'Uphill', downhill: 'Downhill' },
       wind: { none: 'No wind', back: 'Back wind', front: 'Front wind' },
       direction: { fairway: '🎯 Fairway', left: '↖️ Left', right: '↗️ Right' }
@@ -968,7 +998,7 @@
         <div class="hi-left">
           <div class="hi-club">${s.club}</div>
           <div class="hi-tags">
-            <span class="tag tag-grip">${s.grip === 'short' ? 'Short' : 'Normal'} grip</span>
+            <span class="tag tag-grip">${s.grip === 'short' ? 'Short' : s.grip === 'drop' ? 'Drop' : 'Normal'} grip</span>
             <span class="tag tag-slope">${slopeIcon[s.slope]} ${s.slope}</span>
             <span class="tag tag-wind">${windIcon[s.wind]} ${s.wind === 'none' ? 'No wind' : s.wind + ' wind'}</span>
             ${dirTag}
@@ -1002,6 +1032,10 @@
 
   // ── GPS Distance ────────────────────────────────────────────────────
   let gpsStart = null;
+  let gpsWatchId = null;
+  let gpsSmoothedDist = null;
+  const GPS_ACCURACY_THRESHOLD = 8; // meters — ignore fixes noisier than this
+  const GPS_SMOOTHING = 0.35; // 0-1, lower = smoother but slower to react to real movement
 
   function toggleGPS() {
     if (!gpsStart) startGPS();
@@ -1017,11 +1051,30 @@
     navigator.geolocation.getCurrentPosition(
       pos => {
         gpsStart = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        btn.innerHTML = '🔴 Stop GPS';
+        gpsSmoothedDist = null;
+        btn.innerHTML = '🔴 Stop GPS · 0m';
         btn.disabled = false;
         btn.classList.add('active');
-        document.getElementById('distInput').value = '';
+        document.getElementById('distInput').value = '0';
         showToast('GPS started — walk to the ball');
+
+        gpsWatchId = navigator.geolocation.watchPosition(
+          livePos => {
+            if (livePos.coords.accuracy != null && livePos.coords.accuracy > GPS_ACCURACY_THRESHOLD) {
+              return; // fix too noisy — wait for a better one rather than jump the display
+            }
+            const current = { lat: livePos.coords.latitude, lng: livePos.coords.longitude };
+            const rawDist = haversine(gpsStart, current);
+            gpsSmoothedDist = gpsSmoothedDist === null
+              ? rawDist
+              : GPS_SMOOTHING * rawDist + (1 - GPS_SMOOTHING) * gpsSmoothedDist;
+            const dist = Math.round(gpsSmoothedDist);
+            document.getElementById('distInput').value = dist;
+            btn.innerHTML = `🔴 Stop GPS · ${dist}m`;
+          },
+          () => { /* transient fix errors while walking — keep last known distance */ },
+          { enableHighAccuracy: true, maximumAge: 1000 }
+        );
       },
       () => {
         btn.textContent = '📍 Start GPS';
@@ -1034,29 +1087,17 @@
 
   function stopGPS() {
     const btn = document.getElementById('gpsBtn');
-    btn.textContent = '📡 Measuring...';
-    btn.disabled = true;
-
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const end = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const dist = Math.round(haversine(gpsStart, end));
-        gpsStart = null;
-        document.getElementById('distInput').value = dist;
-        btn.textContent = '📍 Start GPS';
-        btn.disabled = false;
-        btn.classList.remove('active');
-        showToast('📍 ' + dist + 'm measured');
-      },
-      () => {
-        gpsStart = null;
-        btn.textContent = '📍 Start GPS';
-        btn.disabled = false;
-        btn.classList.remove('active');
-        showToast('GPS error — enter distance manually');
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
+    if (gpsWatchId !== null) {
+      navigator.geolocation.clearWatch(gpsWatchId);
+      gpsWatchId = null;
+    }
+    const dist = document.getElementById('distInput').value;
+    gpsStart = null;
+    gpsSmoothedDist = null;
+    btn.textContent = '📍 Start GPS';
+    btn.disabled = false;
+    btn.classList.remove('active');
+    showToast(dist ? '📍 ' + dist + 'm measured' : 'GPS stopped');
   }
 
   function haversine(a, b) {
@@ -1176,10 +1217,15 @@
   const decideState = { slope: null, wind: null };
 
   function selectDecideOption(type, val, btn) {
-    decideState[type] = val;
     const rowId = 'decide' + type.charAt(0).toUpperCase() + type.slice(1) + 'Row';
+    const alreadySelected = btn.classList.contains('selected');
     document.getElementById(rowId).querySelectorAll('button').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
+    if (alreadySelected) {
+      decideState[type] = null;
+    } else {
+      decideState[type] = val;
+      btn.classList.add('selected');
+    }
     runDecision();
   }
 
