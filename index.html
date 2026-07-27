@@ -129,6 +129,31 @@
       color: var(--green);
     }
 
+    /* RELIABILITY TIERS */
+    .club-grid button.reliability-low:not(.selected)  { background: #fdecea; border-color: #f0a89f; }
+    .club-grid button.reliability-mid:not(.selected)  { background: #fff4e0; border-color: #f0c47a; }
+    .club-grid button.reliability-ok:not(.selected)   { background: var(--green-pale); border-color: #a9dcb0; }
+    .club-grid button.reliability-high:not(.selected) { background: #81c784; border-color: #81c784; }
+    .club-grid button.reliability-high:not(.selected) .club-btn-name,
+    .club-grid button.reliability-high:not(.selected) .club-btn-avg { color: var(--green); }
+
+    .dc-name.reliability-low   { background: #fdecea; color: #b3261e; }
+    .dc-name.reliability-mid   { background: #fff4e0; color: #8a5a00; }
+    .dc-name.reliability-ok    { background: var(--green-pale); color: var(--green); }
+    .dc-name.reliability-high  { background: #81c784; color: var(--green); }
+
+    .club-name.reliability-low,
+    .club-name.reliability-mid,
+    .club-name.reliability-ok,
+    .club-name.reliability-high {
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    .club-name.reliability-low   { background: #fdecea; color: #b3261e; }
+    .club-name.reliability-mid   { background: #fff4e0; color: #8a5a00; }
+    .club-name.reliability-ok    { background: var(--green-pale); color: var(--green); }
+    .club-name.reliability-high  { background: #81c784; color: var(--green); }
+
     .option-row {
       display: flex;
       gap: 6px;
@@ -312,6 +337,7 @@
     }
 
     .club-avg-val { font-size: 1.5rem; font-weight: 800; color: var(--green); line-height: 1; }
+    .club-avg-val .reliability-inline { font-size: 0.8rem; font-weight: 600; color: var(--green-light); }
     .club-avg-lbl { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
 
     .club-minmax {
@@ -525,7 +551,7 @@
       transition: background 0.2s, color 0.2s;
     }
 
-    .dc-grip:first-child { border-right: 1px solid var(--border); }
+    .dc-grip:not(:last-child) { border-right: 1px solid var(--border); }
     .dc-grip.best { background: var(--green-pale); color: var(--green); font-weight: 700; }
 
     .decide-no-data {
@@ -534,6 +560,55 @@
       color: var(--muted);
       font-size: 0.85rem;
       padding: 20px 0 8px;
+    }
+
+    /* DRIVING RANGE */
+    .range-pct-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .range-pct-field {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .range-pct-field span {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .range-pct-field .range-pct-input {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 8px;
+    }
+
+    .range-pct-field .range-pct-input:focus-within { border-color: var(--green); }
+
+    .range-pct-field input {
+      flex: 1;
+      width: 100%;
+      border: none;
+      outline: none;
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .range-pct-field .range-pct-input span.unit { font-size: 0.9rem; color: var(--muted); font-weight: 600; }
+
+    .range-summary {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: var(--green);
+      font-weight: 700;
     }
   </style>
 </head>
@@ -603,20 +678,6 @@
       <button data-val="front" onclick="selectOption('wind','front',this)">
         <span class="opt-icon">←💨</span>
         <span class="opt-label">Front Wind</span>
-      </button>
-    </div>
-  </div>
-
-  <div class="log-section">
-    <label>Direction</label>
-    <div class="option-row" id="directionRow">
-      <button data-val="left" onclick="selectOption('direction','left',this)">
-        <span class="opt-icon">↖️</span>
-        <span class="opt-label">Left</span>
-      </button>
-      <button data-val="right" onclick="selectOption('direction','right',this)">
-        <span class="opt-icon">↗️</span>
-        <span class="opt-label">Right</span>
       </button>
     </div>
   </div>
@@ -692,6 +753,57 @@
   </div>
 </div>
 
+<div id="page-range" class="page">
+  <div class="log-section">
+    <label>Club</label>
+    <div class="club-grid" id="rangeClubGrid"></div>
+  </div>
+
+  <div class="log-section">
+    <label>Balls Hit</label>
+    <div class="distance-input">
+      <input type="number" id="rangeBallsInput" placeholder="e.g. 40" inputmode="numeric" min="1" max="500" />
+    </div>
+  </div>
+
+  <div class="log-section">
+    <label>Miss Direction (%)</label>
+    <div class="range-pct-row">
+      <div class="range-pct-field">
+        <span>↖️ Left</span>
+        <div class="range-pct-input">
+          <input type="number" id="rangeLeftInput" placeholder="0" inputmode="numeric" min="0" max="100" oninput="updateRangeSummary()" />
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="range-pct-field">
+        <span>↗️ Right</span>
+        <div class="range-pct-input">
+          <input type="number" id="rangeRightInput" placeholder="0" inputmode="numeric" min="0" max="100" oninput="updateRangeSummary()" />
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+    <div class="range-summary" id="rangeDirectionSummary">🎯 Straight (Fairway): 100%</div>
+  </div>
+
+  <div class="log-section">
+    <label>Contact Quality (%)</label>
+    <div class="range-pct-row">
+      <div class="range-pct-field">
+        <span>Good Curve</span>
+        <div class="range-pct-input">
+          <input type="number" id="rangeGoodInput" placeholder="0" inputmode="numeric" min="0" max="100" oninput="updateRangeSummary()" />
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+    <div class="range-summary" id="rangeCurveSummary">Bad Curve: 100%</div>
+  </div>
+
+  <button class="btn-primary" onclick="logRangeSession()">Log Range Session</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <nav>
@@ -700,6 +812,9 @@
   </button>
   <button onclick="showPage('decide',this)">
     <span class="icon">🎯</span>Decide
+  </button>
+  <button onclick="showPage('range',this)">
+    <span class="icon">🧭</span>Range
   </button>
   <button onclick="showPage('stats',this)">
     <span class="icon">📊</span>Stats
@@ -716,8 +831,7 @@
     club: null,
     grip: null,
     slope: null,
-    wind: null,
-    direction: null
+    wind: null
   };
 
   let activeFilter = 'all';
@@ -769,6 +883,8 @@
         avgHtml = `<span class="club-btn-avg">${parts.join('  ') || '—'}</span>`;
       }
       btn.innerHTML = `<span class="club-btn-name">${c}</span>` + avgHtml;
+      const tier = reliabilityTierClass(getClubReliability(c));
+      if (tier) btn.classList.add(tier);
       if (c === selected) btn.classList.add('selected');
       btn.onclick = () => selectClub(c, btn);
       grid.appendChild(btn);
@@ -816,7 +932,6 @@
     if (!state.grip) state.grip = 'normal';
     if (!state.slope) state.slope = 'flat';
     if (!state.wind) state.wind = 'none';
-    if (!state.direction) state.direction = 'fairway';
 
     const shot = {
       id: Date.now(),
@@ -825,7 +940,6 @@
       grip: state.grip,
       slope: state.slope,
       wind: state.wind,
-      direction: state.direction,
       date: new Date().toISOString()
     };
 
@@ -838,11 +952,9 @@
     state.grip = null;
     state.slope = null;
     state.wind = null;
-    state.direction = null;
     document.getElementById('gripRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     document.getElementById('slopeRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     document.getElementById('windRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
-    document.getElementById('directionRow').querySelectorAll('button').forEach(b => b.classList.remove('selected'));
     buildClubGrid();
   }
 
@@ -882,74 +994,84 @@
 
   function renderStats() {
     const data = getData();
+    const rangeData = getRangeData();
     const container = document.getElementById('statsContent');
-    if (data.length === 0) {
+    if (data.length === 0 && rangeData.length === 0) {
       container.innerHTML = '<div class="no-data">No shots logged yet.<br>Hit the course and start tracking! 🏌️</div>';
       return;
     }
 
     const filtered = applyFilter(data);
-    if (filtered.length === 0) {
-      container.innerHTML = '<div class="no-data">No shots match this filter.</div>';
-      return;
-    }
-
     const byClub = {};
     filtered.forEach(s => {
       if (!byClub[s.club]) byClub[s.club] = [];
       byClub[s.club].push(s);
     });
 
-    // Sort clubs in CLUBS order
-    const html = CLUBS
-      .filter(c => byClub[c])
-      .map(c => {
-        const shots = byClub[c];
-        const distances = shots.map(s => s.distance);
-        const average = avg(distances);
-        const max = Math.max(...distances);
-        const min = Math.min(...distances);
+    const rangeByClub = {};
+    rangeData.forEach(s => {
+      if (!rangeByClub[s.club]) rangeByClub[s.club] = [];
+      rangeByClub[s.club].push(s);
+    });
 
-        // Breakdown tags
-        const tags = buildBreakdownTags(shots);
+    // Range accuracy isn't grip/slope/wind-specific, so only merge it in on the unfiltered view
+    const showRange = activeFilter === 'all';
 
-        return `<div class="club-card">
-          <div class="club-card-main">
-            <span class="club-name">${c}</span>
+    const clubsToShow = CLUBS.filter(c => byClub[c] || (showRange && rangeByClub[c]));
+    if (clubsToShow.length === 0) {
+      container.innerHTML = '<div class="no-data">No shots match this filter.</div>';
+      return;
+    }
+
+    const html = clubsToShow.map(c => {
+        const shots = byClub[c] || [];
+        const acc = showRange ? computeRangeAccuracy(rangeByClub[c]) : null;
+        const tier = acc ? reliabilityTierClass(computeReliability(acc)) : '';
+        const nameClass = 'club-name' + (tier ? ' ' + tier : '');
+
+        let mainHtml;
+        if (shots.length > 0) {
+          const distances = shots.map(s => s.distance);
+          const average = avg(distances);
+          const max = Math.max(...distances);
+          const min = Math.min(...distances);
+          const reliabilityHtml = acc
+            ? `<span class="reliability-inline"> - Reliability: ${computeReliability(acc)}%</span>`
+            : '';
+          mainHtml = `<div class="club-card-main">
+            <span class="${nameClass}">${c}</span>
             <div class="club-avg-wrap">
-              <div class="club-avg-val">${average}m</div>
+              <div class="club-avg-val">${average}m${reliabilityHtml}</div>
               <div class="club-avg-lbl">Average · ${shots.length} shot${shots.length !== 1 ? 's' : ''}</div>
             </div>
             <div class="club-minmax">
               <span><strong>${max}m</strong> max</span>
               <span><strong>${min}m</strong> min</span>
             </div>
-          </div>
-          ${tags}
-        </div>`;
+          </div>`;
+        } else {
+          mainHtml = `<div class="club-card-main"><span class="${nameClass}">${c}</span></div>`;
+        }
+
+        const tags = [
+          ...buildBreakdownTags(shots),
+          ...buildRangeBreakdownTags(acc)
+        ];
+        const tagsHtml = tags.length > 0 ? `<div class="breakdown-row">${tags.join('')}</div>` : '';
+
+        return `<div class="club-card">${mainHtml}${tagsHtml}</div>`;
       }).join('');
 
     container.innerHTML = html;
   }
 
   function buildBreakdownTags(shots) {
-    const groups = { grip: {}, slope: {}, wind: {}, direction: {} };
-    shots.forEach(s => {
-      ['grip','slope','wind','direction'].forEach(k => {
-        if (!s[k]) return;
-        if (!groups[k][s[k]]) groups[k][s[k]] = 0;
-        groups[k][s[k]]++;
-      });
-    });
-
     const labels = {
       grip: { normal: 'Normal grip', short: 'Short grip', drop: 'Drop grip' },
       slope: { flat: 'Flat', uphill: 'Uphill', downhill: 'Downhill' },
-      wind: { none: 'No wind', back: 'Back wind', front: 'Front wind' },
-      direction: { fairway: '🎯 Fairway', left: '↖️ Left', right: '↗️ Right' }
+      wind: { none: 'No wind', back: 'Back wind', front: 'Front wind' }
     };
 
-    const total = shots.length;
     const tags = [];
 
     // Distance breakdown for grip/slope/wind
@@ -967,13 +1089,46 @@
       });
     });
 
-    // Direction breakdown as percentage
-    Object.entries(groups.direction).forEach(([val, count]) => {
-      const pct = Math.round((count / total) * 100);
-      tags.push(`<span class="breakdown-tag">${labels.direction[val]}: <strong>${pct}%</strong></span>`);
-    });
+    return tags;
+  }
 
-    return tags.length > 0 ? `<div class="breakdown-row">${tags.join('')}</div>` : '';
+  function computeRangeAccuracy(sessions) {
+    if (!sessions || sessions.length === 0) return null;
+    const totalBalls = sessions.reduce((a, s) => a + s.balls, 0);
+    const wAvg = key => Math.round(sessions.reduce((a, s) => a + s[key] * s.balls, 0) / totalBalls);
+    const left = wAvg('leftPct');
+    const right = wAvg('rightPct');
+    const straight = Math.max(0, 100 - left - right);
+    const good = wAvg('goodCurvePct');
+    return { left, right, straight, good };
+  }
+
+  function computeReliability(acc) {
+    return Math.round(acc.straight * 0.7 + acc.good * 0.3);
+  }
+
+  function getClubReliability(club) {
+    const sessions = getRangeData().filter(s => s.club === club);
+    const acc = computeRangeAccuracy(sessions);
+    return acc ? computeReliability(acc) : null;
+  }
+
+  function reliabilityTierClass(score) {
+    if (score === null) return '';
+    if (score < 50) return 'reliability-low';
+    if (score < 60) return 'reliability-mid';
+    if (score < 80) return 'reliability-ok';
+    return 'reliability-high';
+  }
+
+  function buildRangeBreakdownTags(acc) {
+    if (!acc) return [];
+    return [
+      `<span class="breakdown-tag">🎯 Fairway: <strong>${acc.straight}%</strong></span>`,
+      `<span class="breakdown-tag">↖️ Left: <strong>${acc.left}%</strong></span>`,
+      `<span class="breakdown-tag">↗️ Right: <strong>${acc.right}%</strong></span>`,
+      `<span class="breakdown-tag">Good curve: <strong>${acc.good}%</strong></span>`
+    ];
   }
 
   function renderHistory() {
@@ -1159,7 +1314,7 @@
   async function performBackup(token) {
     showToast('Saving to Drive...');
     try {
-      const content = JSON.stringify(getData());
+      const content = JSON.stringify({ shots: getData(), rangeSessions: getRangeData() });
       const fileId = await findBackupFile(token);
 
       let res;
@@ -1204,10 +1359,25 @@
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error(`Download failed (${res.status})`);
-      const shots = await res.json();
+      const backup = await res.json();
+
+      // Legacy backups were a plain shots array with no range sessions info —
+      // restoring one shouldn't wipe out range data it never knew about.
+      const isLegacy = Array.isArray(backup);
+      const shots = isLegacy ? backup : (backup.shots || []);
       saveData(shots);
+
+      let rangeMsg = '';
+      if (!isLegacy) {
+        const rangeSessions = backup.rangeSessions || [];
+        saveRangeData(rangeSessions);
+        rangeMsg = `, ${rangeSessions.length} range session${rangeSessions.length !== 1 ? 's' : ''}`;
+      }
+
       renderHistory();
-      showToast(`Restored ${shots.length} shots ☁️`);
+      buildClubGrid();
+      buildRangeClubGrid();
+      showToast(`Restored ${shots.length} shots${rangeMsg} ☁️`);
     } catch (e) {
       showToast('Restore failed: ' + e.message);
     }
@@ -1244,15 +1414,16 @@
     const sm = SLOPE_M[slope || 'flat'];
     const wm = WIND_M[wind || 'none'];
 
-    // Compute N and S effective averages per club under current conditions
+    // Compute N, S and Drop effective averages per club under current conditions
+    const GRIP_LABELS = { normal: 'N', short: 'S', drop: 'Drop' };
     const clubData = {};
     CLUBS.forEach(c => {
-      clubData[c] = { normal: null, short: null };
+      clubData[c] = { normal: null, short: null, drop: null };
       const allShots = data.filter(s => s.club === c);
       if (allShots.length === 0) return;
 
-      ['normal', 'short'].forEach(grip => {
-        const gripShots = allShots.filter(s => (s.grip === 'short' ? 'short' : 'normal') === grip);
+      ['normal', 'short', 'drop'].forEach(grip => {
+        const gripShots = allShots.filter(s => (s.grip === 'short' ? 'short' : s.grip === 'drop' ? 'drop' : 'normal') === grip);
         if (gripShots.length === 0) return;
 
         let condShots = gripShots;
@@ -1271,7 +1442,7 @@
     if (dist && dist > 0) {
       let bestDiff = Infinity;
       CLUBS.forEach(c => {
-        ['normal', 'short'].forEach(grip => {
+        ['normal', 'short', 'drop'].forEach(grip => {
           const eff = clubData[c][grip];
           if (eff === null) return;
           const diff = Math.abs(eff - dist);
@@ -1280,7 +1451,7 @@
       });
     }
 
-    const hasAnyData = CLUBS.some(c => clubData[c].normal !== null || clubData[c].short !== null);
+    const hasAnyData = CLUBS.some(c => clubData[c].normal !== null || clubData[c].short !== null || clubData[c].drop !== null);
     if (!hasAnyData) {
       grid.innerHTML = '<div class="decide-no-data">No shots logged yet.<br>Log some shots first to get recommendations.</div>';
       return;
@@ -1290,24 +1461,28 @@
     CLUBS.forEach(c => {
       const cd = clubData[c];
       const isBestClub = c === bestClub;
+      const gripsToShow = c === 'SW' ? ['normal', 'short', 'drop'] : ['normal', 'short'];
 
       const card = document.createElement('div');
       card.className = 'decide-club-card' + (isBestClub ? ' best' : '');
 
       const nameDiv = document.createElement('div');
       nameDiv.className = 'dc-name' + (isBestClub ? ' best' : '');
+      if (!isBestClub) {
+        const tier = reliabilityTierClass(getClubReliability(c));
+        if (tier) nameDiv.classList.add(tier);
+      }
       nameDiv.textContent = c;
 
       const gripsDiv = document.createElement('div');
       gripsDiv.className = 'dc-grips';
 
-      ['normal', 'short'].forEach(grip => {
+      gripsToShow.forEach(grip => {
         const div = document.createElement('div');
         const isBestGrip = isBestClub && grip === bestGrip;
         div.className = 'dc-grip' + (isBestGrip ? ' best' : '');
-        div.textContent = cd[grip] !== null
-          ? `${grip === 'normal' ? 'N' : 'S'}-${cd[grip]}m`
-          : `${grip === 'normal' ? 'N' : 'S'}-—`;
+        const label = GRIP_LABELS[grip];
+        div.textContent = cd[grip] !== null ? `${label}-${cd[grip]}m` : `${label}-—`;
         gripsDiv.appendChild(div);
       });
 
@@ -1315,6 +1490,87 @@
       card.appendChild(gripsDiv);
       grid.appendChild(card);
     });
+  }
+
+  // ── Driving Range ─────────────────────────────────────────────────────
+  let rangeClub = null;
+  const rangeGrid = document.getElementById('rangeClubGrid');
+
+  function buildRangeClubGrid() {
+    rangeGrid.innerHTML = '';
+    CLUBS.forEach(c => {
+      const btn = document.createElement('button');
+      btn.innerHTML = `<span class="club-btn-name">${c}</span>`;
+      const tier = reliabilityTierClass(getClubReliability(c));
+      if (tier) btn.classList.add(tier);
+      if (c === rangeClub) btn.classList.add('selected');
+      btn.onclick = () => selectRangeClub(c, btn);
+      rangeGrid.appendChild(btn);
+    });
+  }
+
+  buildRangeClubGrid();
+
+  function selectRangeClub(club, btn) {
+    rangeClub = club;
+    rangeGrid.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  function updateRangeSummary() {
+    const left = Math.max(0, Math.min(100, parseInt(document.getElementById('rangeLeftInput').value) || 0));
+    const right = Math.max(0, Math.min(100, parseInt(document.getElementById('rangeRightInput').value) || 0));
+    const straight = Math.max(0, 100 - left - right);
+    document.getElementById('rangeDirectionSummary').textContent = `🎯 Straight (Fairway): ${straight}%`;
+
+    const good = Math.max(0, Math.min(100, parseInt(document.getElementById('rangeGoodInput').value) || 0));
+    const bad = 100 - good;
+    document.getElementById('rangeCurveSummary').textContent = `Bad Curve: ${bad}%`;
+  }
+
+  function getRangeData() {
+    return JSON.parse(localStorage.getItem('rangeSessions') || '[]');
+  }
+
+  function saveRangeData(d) {
+    localStorage.setItem('rangeSessions', JSON.stringify(d));
+  }
+
+  function logRangeSession() {
+    const balls = parseInt(document.getElementById('rangeBallsInput').value);
+    const left = parseInt(document.getElementById('rangeLeftInput').value) || 0;
+    const right = parseInt(document.getElementById('rangeRightInput').value) || 0;
+    const good = parseInt(document.getElementById('rangeGoodInput').value) || 0;
+
+    if (!rangeClub) { showToast('Select a club'); return; }
+    if (!balls || balls < 1) { showToast('Enter how many balls you hit'); return; }
+    if (left < 0 || right < 0 || left + right > 100) { showToast('Left + Right can\'t exceed 100%'); return; }
+    if (good < 0 || good > 100) { showToast('Good curve must be 0-100%'); return; }
+
+    const session = {
+      id: Date.now(),
+      club: rangeClub,
+      balls,
+      leftPct: left,
+      rightPct: right,
+      straightPct: 100 - left - right,
+      goodCurvePct: good,
+      badCurvePct: 100 - good,
+      date: new Date().toISOString()
+    };
+
+    const data = getRangeData();
+    data.push(session);
+    saveRangeData(data);
+
+    showToast('Range session logged 🧭');
+    document.getElementById('rangeBallsInput').value = '';
+    document.getElementById('rangeLeftInput').value = '';
+    document.getElementById('rangeRightInput').value = '';
+    document.getElementById('rangeGoodInput').value = '';
+    updateRangeSummary();
+    buildClubGrid();
+    buildRangeClubGrid();
   }
 
   function updateLastBackupInfo() {
